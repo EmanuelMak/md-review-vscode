@@ -24,6 +24,7 @@ import {
   setMarkerComment,
 } from './actions';
 import { isSuggestion, Marker } from './criticmarkup';
+import type { Dictation } from './dictation';
 import { renderDocument } from './render';
 import type { Span } from './mapping';
 
@@ -45,6 +46,7 @@ type Msg =
   | { type: 'openSettings' }
   | { type: 'rerender' }
   | { type: 'log'; text: string }
+  | { type: 'dictate'; action: 'start' | 'stop' | 'cancel' }
   | { type: 'ui'; ui: UiState };
 
 /** Ansichtszustand, der für alle Dateien gilt (eingeklappte Toolbar, Randspalte aus). */
@@ -63,10 +65,13 @@ export class ReviewEditorProvider implements vscode.CustomTextEditorProvider {
   static readonly viewType = 'mdReview.editor';
   static active: ReviewSession | undefined;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly dictation: Dictation,
+  ) {}
 
   resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
-    const s = new ReviewSession(this.context, document, panel);
+    const s = new ReviewSession(this.context, document, panel, this.dictation);
     ReviewEditorProvider.active = s;
   }
 }
@@ -81,6 +86,7 @@ export class ReviewSession {
     private readonly context: vscode.ExtensionContext,
     readonly document: vscode.TextDocument,
     private readonly panel: vscode.WebviewPanel,
+    private readonly dictation: Dictation,
   ) {
     const dir = vscode.Uri.joinPath(document.uri, '..');
     const roots = [vscode.Uri.joinPath(context.extensionUri, 'media'), dir, ...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri)];
@@ -112,6 +118,7 @@ export class ReviewSession {
 
   private dispose() {
     if (ReviewEditorProvider.active === this) ReviewEditorProvider.active = undefined;
+    this.dictation.cancel(this);
     this.disposables.forEach((d) => d.dispose());
     clearTimeout(this.renderTimer);
   }
@@ -201,6 +208,13 @@ export class ReviewSession {
       case 'log':
         log.warn('webview:', m.text);
         return;
+      case 'dictate': {
+        // nicht abwarten: Aufnahme und Transkription dauern und sollen die Warteschlange nicht blockieren
+        const d = this.dictation;
+        const p = m.action === 'start' ? d.start(this) : m.action === 'stop' ? d.stop(this) : d.cancel(this);
+        Promise.resolve(p).catch((e) => log.error('Diktieren:', e));
+        return;
+      }
       case 'ui':
         await this.context.globalState.update(UI_KEY, m.ui);
         return;

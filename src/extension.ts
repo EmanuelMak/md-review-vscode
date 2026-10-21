@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
+import { Dictation } from './dictation';
 import { ReviewEditorProvider } from './provider';
 import { checkForUpdate, offerDefaultEditor, setDefaultEditor, startUpdateChecks } from './update';
 
 export function activate(context: vscode.ExtensionContext) {
+  const dictation = new Dictation(context);
   context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(ReviewEditorProvider.viewType, new ReviewEditorProvider(context), {
+    dictation,
+    vscode.window.registerCustomEditorProvider(ReviewEditorProvider.viewType, new ReviewEditorProvider(context, dictation), {
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
@@ -40,6 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
     await setDefaultEditor(ReviewEditorProvider.viewType);
     vscode.window.showInformationMessage('Markdown-Dateien öffnen jetzt standardmäßig mit Markdown Review.');
   });
+  reg('mdReview.dictation.setup', () => dictation.setup());
+  reg('mdReview.dictation.setApiKey', () => dictation.setApiKey());
   startUpdateChecks(context);
   void offerDefaultEditor(context, ReviewEditorProvider.viewType);
 

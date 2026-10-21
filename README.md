@@ -60,6 +60,7 @@ Datei zusätzlich daneben im Texteditor.
 |---|---|
 | Hervorheben | Text markieren → Farbfeld klicken, oder `H` (aktive Farbe), oder `⌥1`…`⌥5` (Farbe direkt) |
 | Hervorheben + Kommentar | Text markieren → `K` oder „Kommentar“ → tippen → `Enter` (`Shift+Enter` = neue Zeile) |
+| Kommentar diktieren | Im Kommentarfeld `⌥M` oder 🎙 → sprechen → `Enter`/`⌥M` beendet die Aufnahme, `Esc` verwirft sie; Text korrigieren, dann `Enter` speichert (siehe [Diktieren](#diktieren)) |
 | Kommentar ohne Bezugstext | Cursor setzen → `⌥K` oder „Nur Kommentar“ |
 | Einfügen vorschlagen | Cursor in den Text setzen und tippen → grün `{++…++}`; weiter tippen verlängert die Einfügung |
 | Ersetzen vorschlagen | Text markieren und tippen → `{~~alt~>neu~~}` |
@@ -79,11 +80,59 @@ Datei zusätzlich daneben im Texteditor.
 | Rückgängig | `⌘Z` – in der Review-Ansicht wie im Texteditor (jede Aktion ist ein normales Text-Edit) |
 
 Commands (Command Palette, Präfix „Markdown Review“): Open, Accept at cursor, Reject at cursor, Accept all,
-Reject all, Remove all highlights, Next marker, Previous marker, Quelltext daneben anzeigen.
+Reject all, Remove all highlights, Next marker, Previous marker, Quelltext daneben anzeigen, Diktieren einrichten,
+Diktieren – API-Key festlegen.
 
 Einstellungen: `mdReview.author` (Kürzel, Standard `EM`), `mdReview.colors` (Name → Hex, Reihenfolge = Tasten),
 `mdReview.defaultColor` (`gelb`), `mdReview.showGutter` (Randspalte an/aus). Das Kürzel rechts in der Toolbar öffnet
 die Einstellung.
+
+## Diktieren
+
+Kommentare lassen sich diktieren statt tippen: im Kommentar-Popup auf 🎙 klicken oder `⌥M` drücken, sprechen, mit
+`Enter`, `⌥M` oder einem Klick auf „Stopp“ beenden (`Esc` verwirft die Aufnahme). Der erkannte Text wird an der
+Cursorposition eingefügt und kann noch korrigiert werden, bevor `Enter` speichert. Die Aufnahme endet spätestens nach
+`mdReview.dictation.maxSeconds` (300 s).
+
+**Einrichtung (macOS, einmal):**
+
+```bash
+brew install whisper-cpp sox
+```
+
+Beim ersten Diktieren fragt die Extension, ob sie das Sprachmodell laden soll (Standard `large-v3-turbo-q5_0`, ca.
+550 MB, landet im Speicherordner der Extension). Danach läuft alles **offline auf dem Rechner**. Beim ersten Mal fragt
+macOS, ob Visual Studio Code das Mikrofon benutzen darf – erlauben. Fehlen Programme, zeigt die Extension den
+Installationsbefehl (mit „Im Terminal installieren“). „Markdown Review: Diktieren einrichten“ prüft alles vorab.
+
+Windows: `winget install Gyan.FFmpeg` für die Aufnahme, whisper.cpp als `whisper-bin-x64.zip` von den
+[Releases](https://github.com/ggml-org/whisper.cpp/releases) entpacken und `mdReview.dictation.whisperPath` auf
+`whisper-cli.exe` setzen. Ohne Geräteangabe nimmt ffmpeg das erste DirectShow-Mikrofon.
+
+**Wie es funktioniert:** In VS Code-Webviews gibt es keinen Mikrofonzugriff (`getUserMedia` scheitert an der
+Permissions-Policy, siehe [vscode#250568](https://github.com/microsoft/vscode/issues/250568)), und die Web Speech API
+liefert in Electron nur `network`-Fehler ([electron#7749](https://github.com/electron/electron/issues/7749)). Deshalb
+nimmt der Extension-Host mit `sox` (oder `ffmpeg`) auf und transkribiert mit `whisper-cli` (whisper.cpp). Ist die
+Aufnahme stumm (meist fehlende Mikrofon-Berechtigung), kommt eine Meldung statt eines erfundenen Textes. Protokoll:
+Ausgabe-Panel „Markdown Review“.
+
+**Alternativ per API:** `mdReview.dictation.engine` = `openai`, Key mit „Markdown Review: Diktieren – API-Key
+festlegen“ (liegt im Schlüsselbund von VS Code, nicht in den Einstellungen). `mdReview.dictation.apiUrl` und
+`apiModel` (Standard `gpt-4o-transcribe`) passen auch für andere OpenAI-kompatible Dienste. Aufgenommen wird weiter
+lokal, also braucht es auch hier `sox` oder `ffmpeg`.
+
+| Einstellung | Standard | Bedeutung |
+|---|---|---|
+| `mdReview.dictation.engine` | `local` | `local` (whisper.cpp) oder `openai` |
+| `mdReview.dictation.language` | `de` | Sprache, `auto` = erkennen |
+| `mdReview.dictation.model` | `large-v3-turbo-q5_0` | whisper.cpp-Modell (`small` ist kleiner, aber ungenauer) |
+| `mdReview.dictation.modelPath` | leer | eigene `ggml-*.bin` statt Download |
+| `mdReview.dictation.recorder` | `auto` | `sox`, sonst `ffmpeg` |
+| `mdReview.dictation.inputDevice` | leer | Mikrofon; leer = Standardgerät |
+| `mdReview.dictation.whisperPath` / `soxPath` / `ffmpegPath` | leer | Pfade, falls nicht im `PATH` bzw. `/opt/homebrew/bin` |
+
+**Schon jetzt ohne Einrichtung:** Die macOS-Diktierfunktion (zweimal `fn` bzw. 🌐 drücken) funktioniert im
+Kommentarfeld wie in jedem Textfeld.
 
 ## Dateiformat
 
@@ -161,6 +210,7 @@ Alle Kommentare finden: `grep -n '{>>EM' datei.md`
 
 ```bash
 npm test             # Unit-Tests (Parser, Mapping, Aktionen) inkl. Offset-Prüfung an einer echten Datei
+WHISPER_MODEL=~/pfad/ggml-large-v3-turbo-q5_0.bin npm test   # zusätzlich Diktat-Kette say → sox → whisper-cli (macOS)
 npm run typecheck
 npm run watch        # esbuild im Watch-Modus; F5 in VS Code startet einen Extension Host
 ```
@@ -171,5 +221,8 @@ npm run watch        # esbuild im Watch-Modus; F5 in VS Code startet einen Exten
 
 Aufbau: `src/criticmarkup.ts` (Marker erkennen, annehmen/ablehnen), `src/mapping.ts` (markdown-it + Offsets),
 `src/render.ts` (HTML mit `data-s`/`data-a`/`data-m`), `src/actions.ts` (alle Aktionen als reine Textfunktionen),
-`src/provider.ts` (Webview ↔ TextDocument), `src/update.ts` (Selbst-Update aus GitHub-Releases), `media/main.js`
-(Webview).
+`src/provider.ts` (Webview ↔ TextDocument), `src/update.ts` (Selbst-Update aus GitHub-Releases), `src/dictation.ts`
+(Aufnahme und Transkription fürs Diktieren), `media/main.js` (Webview).
+
+Im Harness liefert das Diktieren einen festen Text; `window.__dictationText` bzw. `window.__dictationError` in der
+Konsole setzen, um andere Ergebnisse zu testen.
