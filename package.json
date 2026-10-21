@@ -97,6 +97,16 @@
         "command": "mdReview.setDefault",
         "title": "Als Standard für Markdown-Dateien setzen",
         "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.dictation.setup",
+        "title": "Diktieren einrichten",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.dictation.setApiKey",
+        "title": "Diktieren – API-Key festlegen",
+        "category": "Markdown Review"
       }
     ],
     "menus": {
@@ -205,6 +215,98 @@
           "type": "string",
           "default": "EmanuelMak/md-review-vscode",
           "description": "GitHub-Repo (owner/name), aus dessen Releases Updates kommen."
+        },
+        "mdReview.dictation.engine": {
+          "type": "string",
+          "enum": [
+            "local",
+            "openai"
+          ],
+          "default": "local",
+          "enumDescriptions": [
+            "Lokal und offline mit whisper.cpp (whisper-cli)",
+            "OpenAI-kompatible API (/v1/audio/transcriptions), Key über „Diktieren – API-Key festlegen“"
+          ],
+          "description": "Womit diktierte Kommentare transkribiert werden."
+        },
+        "mdReview.dictation.language": {
+          "type": "string",
+          "default": "de",
+          "description": "Sprache des Diktats (ISO-Code wie de, en; auto = erkennen)."
+        },
+        "mdReview.dictation.model": {
+          "type": "string",
+          "default": "large-v3-turbo-q5_0",
+          "enum": [
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large-v3-turbo-q5_0",
+            "large-v3-turbo",
+            "large-v3"
+          ],
+          "enumDescriptions": [
+            "75 MB, schnell, für Deutsch zu ungenau",
+            "142 MB",
+            "466 MB",
+            "1,5 GB",
+            "547 MB, sehr gut und schnell (empfohlen)",
+            "1,6 GB",
+            "2,9 GB, am genauesten, langsam"
+          ],
+          "description": "whisper.cpp-Modell. Wird beim ersten Diktieren nach Rückfrage geladen (huggingface.co/ggerganov/whisper.cpp)."
+        },
+        "mdReview.dictation.modelPath": {
+          "type": "string",
+          "default": "",
+          "description": "Pfad zu einer eigenen ggml-*.bin. Leer = Modell aus mdReview.dictation.model verwenden."
+        },
+        "mdReview.dictation.recorder": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "sox",
+            "ffmpeg"
+          ],
+          "default": "auto",
+          "description": "Aufnahmeprogramm. auto = sox, sonst ffmpeg."
+        },
+        "mdReview.dictation.inputDevice": {
+          "type": "string",
+          "default": "",
+          "description": "Mikrofon. Leer = Standardgerät des Systems (ffmpeg unter Windows: erstes DirectShow-Gerät). Sonst Gerätename wie vom Aufnahmeprogramm erwartet."
+        },
+        "mdReview.dictation.whisperPath": {
+          "type": "string",
+          "default": "",
+          "description": "Pfad zu whisper-cli. Leer = im PATH und in /opt/homebrew/bin suchen."
+        },
+        "mdReview.dictation.soxPath": {
+          "type": "string",
+          "default": "",
+          "description": "Pfad zu sox. Leer = im PATH suchen."
+        },
+        "mdReview.dictation.ffmpegPath": {
+          "type": "string",
+          "default": "",
+          "description": "Pfad zu ffmpeg. Leer = im PATH suchen."
+        },
+        "mdReview.dictation.apiUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1/audio/transcriptions",
+          "description": "Endpunkt für engine = openai (auch andere OpenAI-kompatible Dienste)."
+        },
+        "mdReview.dictation.apiModel": {
+          "type": "string",
+          "default": "gpt-4o-transcribe",
+          "description": "Modell für engine = openai, z. B. gpt-4o-transcribe, gpt-4o-mini-transcribe oder whisper-1."
+        },
+        "mdReview.dictation.maxSeconds": {
+          "type": "number",
+          "default": 300,
+          "minimum": 5,
+          "description": "Aufnahme endet spätestens nach so vielen Sekunden."
         }
       }
     }

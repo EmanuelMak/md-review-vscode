@@ -630,6 +630,8 @@
 
   function openPopup(/** @type {any} */ o) {
     hideHoverbar();
+    if (dict.state !== 'idle') post({ type: 'dictate', action: 'cancel' });
+    dict.state = 'idle';
     popupState = { ...o, color: activeColor() };
     const sw = o.withColors
       ? `<div class="pp-colors">${colorNames()
@@ -637,8 +639,8 @@
           .join('')}</div>`
       : '';
     popup.innerHTML = `<div class="pp-head"><span>${o.title}</span>${sw}</div>
-      <textarea rows="3" placeholder="Kommentar … (Enter speichert, Shift+Enter neue Zeile, Esc bricht ab)"></textarea>
-      <div class="pp-foot"><span class="hint">${S.config.author}</span><button data-pp="cancel">Abbrechen</button><button data-pp="ok" class="primary">Speichern</button></div>`;
+      <textarea rows="3" placeholder="Kommentar … (Enter speichert, Shift+Enter neue Zeile, ⌥M diktiert, Esc bricht ab)"></textarea>
+      <div class="pp-foot"><button data-pp="mic" class="mic" title="Diktieren (⌥M)"><span class="mic-ico">🎙</span><span class="mic-lbl"></span></button><span class="hint">${S.config.author}</span><button data-pp="cancel">Abbrechen</button><button data-pp="ok" class="primary">Speichern</button></div>`;
     popup.hidden = false;
     const ta = /** @type {HTMLTextAreaElement} */ (popup.querySelector('textarea'));
     ta.value = o.initial || '';
@@ -653,6 +655,8 @@
   }
 
   function closePopup() {
+    if (dict.state !== 'idle') post({ type: 'dictate', action: 'cancel' });
+    setDict('idle');
     popup.hidden = true;
     popupState = null;
     doc.focus({ preventScroll: true });
@@ -660,6 +664,7 @@
 
   function submitPopup() {
     if (!popupState) return;
+    if (dict.state !== 'idle') return toggleDictation();
     const ta = /** @type {HTMLTextAreaElement} */ (popup.querySelector('textarea'));
     const st = popupState;
     closePopup();
@@ -667,7 +672,13 @@
   }
 
   popup.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+    if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyM') {
+      e.preventDefault();
+      toggleDictation();
+    } else if (e.key === 'Escape' && dict.state !== 'idle') {
+      e.preventDefault();
+      cancelDictation();
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       closePopup();
     } else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -681,7 +692,9 @@
   });
   popup.addEventListener('click', (e) => {
     const t = /** @type {HTMLElement} */ (e.target);
-    if (t.dataset.pp === 'cancel') closePopup();
+    const b = /** @type {HTMLElement | null} */ (t.closest('[data-pp]'));
+    if (b?.dataset.pp === 'mic') toggleDictation();
+    else if (t.dataset.pp === 'cancel') closePopup();
     else if (t.dataset.pp === 'ok') submitPopup();
     else if (t.dataset.color) pickPopupColor(t.dataset.color);
   });
@@ -690,6 +703,76 @@
     popupState.color = n;
     popup.querySelectorAll('.sw').forEach((b) => b.classList.toggle('on', /** @type {HTMLElement} */ (b).dataset.color === n));
     popup.querySelector('textarea')?.focus();
+  }
+
+  // ------------------------------------------------------------------ Diktieren
+  // Aufnahme und Transkription laufen im Extension-Host (Webviews haben kein Mikrofon). Ablauf:
+  // idle → starting → recording → transcribing → idle; das Ergebnis landet an der Cursorposition der Textarea.
+  const dict = { state: 'idle', t0: 0, timer: /** @type {any} */ (null) };
+
+  function toggleDictation() {
+    if (!popupState) return;
+    if (dict.state === 'idle') {
+      setDict('starting');
+      post({ type: 'dictate', action: 'start' });
+    } else if (dict.state === 'recording') {
+      setDict('transcribing');
+      post({ type: 'dictate', action: 'stop' });
+    }
+    popup.querySelector('textarea')?.focus();
+  }
+
+  function cancelDictation() {
+    post({ type: 'dictate', action: 'cancel' });
+    setDict('idle');
+    popup.querySelector('textarea')?.focus();
+  }
+
+  function setDict(/** @type {string} */ state) {
+    dict.state = state;
+    clearInterval(dict.timer);
+    const btn = /** @type {HTMLElement | null} */ (popup.querySelector('[data-pp="mic"]'));
+    const hint = /** @type {HTMLElement | null} */ (popup.querySelector('.pp-foot .hint'));
+    if (!btn || !hint) return;
+    btn.className = `mic ${state}`;
+    const lbl = /** @type {HTMLElement} */ (btn.querySelector('.mic-lbl'));
+    const texts = {
+      idle: ['', 'Diktieren (⌥M)', S.config.author],
+      starting: ['…', 'Aufnahme startet', 'Mikrofon wird geöffnet …'],
+      recording: ['Stopp', 'Aufnahme beenden (Enter oder ⌥M), Esc verwirft', ''],
+      transcribing: ['…', 'Wird transkribiert (Esc bricht ab)', 'Transkribiere …'],
+    };
+    const [l, title, h] = texts[/** @type {'idle'} */ (state)] || texts.idle;
+    lbl.textContent = l;
+    btn.title = title;
+    hint.textContent = h;
+    hint.classList.toggle('live', state !== 'idle');
+    if (state === 'recording') {
+      dict.t0 = Date.now();
+      const tick = () => {
+        const sec = Math.floor((Date.now() - dict.t0) / 1000);
+        hint.textContent = `● ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} · Enter stoppt`;
+      };
+      tick();
+      dict.timer = setInterval(tick, 500);
+    }
+  }
+
+  function onDictation(/** @type {any} */ m) {
+    if (!popupState || dict.state === 'idle') return;
+    if (m.state === 'recording' || m.state === 'transcribing') return setDict(m.state);
+    setDict('idle');
+    if (m.state === 'error') return toast(m.message);
+    if (m.state !== 'done' || !m.text) return;
+    const ta = /** @type {HTMLTextAreaElement} */ (popup.querySelector('textarea'));
+    const before = ta.value.slice(0, ta.selectionStart);
+    const after = ta.value.slice(ta.selectionEnd);
+    const pre = before && !/\s$/.test(before) ? ' ' : '';
+    const postSp = after && !/^[\s.,;:!?]/.test(after) ? ' ' : '';
+    ta.value = before + pre + m.text + postSp + after;
+    const caret = before.length + pre.length + m.text.length;
+    ta.focus();
+    ta.setSelectionRange(caret, caret);
   }
 
   // ------------------------------------------------------------------ Kontextmenü
@@ -889,6 +972,7 @@
     const m = ev.data;
     if (m.type === 'render') onRender(m);
     else if (m.type === 'toast') toast(m.text);
+    else if (m.type === 'dictation') onDictation(m);
     else if (m.type === 'command') {
       if (m.name === 'next') {
         focusVia = 'nav';

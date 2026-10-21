@@ -62,9 +62,24 @@ w.__mockVscode = {
       case 'markerColor': return run((t) => setMarkerColor(t, m.id, m.color, ctx));
       case 'markerComment': return run((t) => setMarkerComment(t, m.id, m.text, ctx));
       case 'all': if (confirm('Alle?')) run((t) => allAction(t, m.action, ctx)); return;
+      case 'dictate': return mockDictation(m.action);
     }
   },
 };
+// Diktieren ohne Mikrofon: w.__dictationText bzw. w.__dictationError steuern das Ergebnis.
+let dictTimer: any;
+function mockDictation(action: 'start' | 'stop' | 'cancel') {
+  const send = (m: any) => window.postMessage({ type: 'dictation', ...m }, '*');
+  clearTimeout(dictTimer);
+  if (action === 'start') dictTimer = setTimeout(() => send({ state: 'recording' }), 150);
+  else if (action === 'stop') {
+    send({ state: 'transcribing' });
+    dictTimer = setTimeout(() => {
+      if (w.__dictationError) send({ state: 'error', message: w.__dictationError });
+      else send({ state: 'done', text: w.__dictationText ?? 'Das ist ein diktierter Kommentar.' });
+    }, 400);
+  }
+}
 w.__getText = () => text;
 w.__setText = (t: string) => { text = t; version++; render(); };
 w.__undo = () => { const t = history.pop(); if (t != null) { text = t; version++; render(); } };
