@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.vsix
+dev/harness.js
+dev/index.html
+test/smoke/
+.claude/

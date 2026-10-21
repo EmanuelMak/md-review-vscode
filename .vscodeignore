@@ -1,0 +1,12 @@
+src/**
+test/**
+dev/**
+node_modules/**
+.claude/**
+**/*.map
+tsconfig.json
+esbuild.mjs
+vitest.config.*
+*.vsix
+.github/**
+scripts/**

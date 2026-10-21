@@ -1,0 +1,238 @@
+{
+  "name": "md-review",
+  "displayName": "Markdown Review Mode",
+  "description": "Markdown in der gerenderten Ansicht markieren, kommentieren und Änderungen vorschlagen – gespeichert als CriticMarkup in der .md-Datei.",
+  "version": "0.2.0",
+  "publisher": "emanuelmak",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "mdReview.editor",
+        "displayName": "Markdown Review",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mdReview.open",
+        "title": "Open with Markdown Review",
+        "category": "Markdown Review",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "mdReview.acceptAtCursor",
+        "title": "Accept at cursor",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.rejectAtCursor",
+        "title": "Reject at cursor",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.acceptAll",
+        "title": "Accept all",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.rejectAll",
+        "title": "Reject all",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.removeAllHighlights",
+        "title": "Remove all highlights",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.nextMarker",
+        "title": "Next marker",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.previousMarker",
+        "title": "Previous marker",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.showSource",
+        "title": "Quelltext daneben anzeigen",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.openAsText",
+        "title": "Als Text öffnen",
+        "category": "Markdown Review",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "mdReview.openPreview",
+        "title": "Markdown-Vorschau daneben",
+        "category": "Markdown Review",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "mdReview.checkForUpdate",
+        "title": "Nach Updates suchen",
+        "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.setDefault",
+        "title": "Als Standard für Markdown-Dateien setzen",
+        "category": "Markdown Review"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "mdReview.open",
+          "when": "resourceExtname == .md",
+          "group": "navigation@20"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "mdReview.open",
+          "when": "resourceExtname == .md",
+          "group": "1_open"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mdReview.open",
+          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "group": "navigation"
+        },
+        {
+          "command": "mdReview.openAsText",
+          "when": "activeCustomEditorId == 'mdReview.editor'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mdReview.openPreview",
+          "when": "activeCustomEditorId == 'mdReview.editor'",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mdReview.openAsText",
+          "when": "activeCustomEditorId == 'mdReview.editor'"
+        },
+        {
+          "command": "mdReview.openPreview",
+          "when": "activeCustomEditorId == 'mdReview.editor'"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mdReview.nextMarker",
+        "key": "alt+down",
+        "when": "activeCustomEditorId == 'mdReview.editor'"
+      },
+      {
+        "command": "mdReview.previousMarker",
+        "key": "alt+up",
+        "when": "activeCustomEditorId == 'mdReview.editor'"
+      }
+    ],
+    "configuration": {
+      "title": "Markdown Review",
+      "properties": {
+        "mdReview.author": {
+          "type": "string",
+          "default": "EM",
+          "description": "Autorenkürzel im Kommentar-Kopf, z. B. {>>EM @gelb: …<<}. Nur Großbuchstaben, 1–4 Zeichen."
+        },
+        "mdReview.colors": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {
+            "gelb": "#ffe066",
+            "gruen": "#8ce99a",
+            "blau": "#74c0fc",
+            "rosa": "#faa2c1",
+            "orange": "#ffc078"
+          },
+          "description": "Farbname (wie er in der Datei steht) → Hex-Farbe. Reihenfolge = Tasten 1…n."
+        },
+        "mdReview.defaultColor": {
+          "type": "string",
+          "default": "gelb",
+          "description": "Farbe, wenn im Marker keine angegeben ist, und Startfarbe der Toolbar."
+        },
+        "mdReview.showGutter": {
+          "type": "boolean",
+          "default": true,
+          "description": "Randspalte mit Kommentarkarten anzeigen."
+        },
+        "mdReview.update.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ask",
+            "off"
+          ],
+          "default": "auto",
+          "enumDescriptions": [
+            "Neue Versionen automatisch installieren (danach Erweiterungen neu starten)",
+            "Vor dem Installieren fragen",
+            "Nicht automatisch prüfen"
+          ],
+          "description": "Updates aus den GitHub-Releases des Repos."
+        },
+        "mdReview.update.repo": {
+          "type": "string",
+          "default": "EmanuelMak/md-review-vscode",
+          "description": "GitHub-Repo (owner/name), aus dessen Releases Updates kommen."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && vsce package --no-dependencies --skip-license",
+    "harness": "esbuild dev/harness.ts --bundle --outfile=dev/harness.js --format=iife --platform=browser && node dev/build-harness.mjs",
+    "release": "npm version patch -m \"Release %s\" && git push --follow-tags",
+    "release:minor": "npm version minor -m \"Release %s\" && git push --follow-tags"
+  },
+  "dependencies": {
+    "markdown-it": "^14.3.3"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^22.20.5",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EmanuelMak/md-review-vscode"
+  }
+}

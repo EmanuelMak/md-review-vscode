@@ -1,0 +1,41 @@
+name: Test & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: VSIX bauen
+        run: npx vsce package --no-dependencies --skip-license -o md-review.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: md-review-vsix
+          path: md-review.vsix
+
+      # Nur bei Tags (v0.2.1 …): Release mit der .vsix anlegen – daraus holen sich alle Installationen das Update
+      - name: Release veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          test "$(node -p "require('./package.json').version")" = "$version" || { echo "Tag passt nicht zur package.json-Version"; exit 1; }
+          mv md-review.vsix "md-review-${version}.vsix"
+          gh release create "$GITHUB_REF_NAME" "md-review-${version}.vsix" --title "$GITHUB_REF_NAME" --generate-notes
