@@ -134,6 +134,59 @@ lokal, also braucht es auch hier `sox` oder `ffmpeg`.
 **Schon jetzt ohne Einrichtung:** Die macOS-Diktierfunktion (zweimal `fn` bzw. 🌐 drücken) funktioniert im
 Kommentarfeld wie in jedem Textfeld.
 
+## PDF in Markdown umwandeln
+
+PDF anklicken → sie öffnet sich in der PDF-Anzeige von Markdown Review → oben **In Markdown umwandeln**. Daneben
+entsteht `<Name>.md` mit den Abbildungen in `<Name>.assets/` und öffnet sich gleich im Review-Editor zum Markieren
+und Kommentieren. Dasselbe per Rechtsklick auf eine PDF im Explorer → **PDF in Markdown umwandeln** oder über die
+Befehlspalette. Gibt es die `.md` schon, fragt die Extension: **Überschreiben** (warnt, wenn darin schon Marker
+stehen; alte Abbildungen gehen in den Papierkorb) oder **Neue Datei** (`<Name>-2.md`). Fortschritt unten rechts
+(abbrechbar), Protokoll im Ausgabe-Panel „Markdown Review“.
+
+**Einrichtung (macOS, einmal):**
+
+```bash
+brew install uv && uv tool install --python 3.12 marker-pdf
+```
+
+Beim ersten Umwandeln lädt marker seine Modelle (ca. 1,5 GB, landen in `~/.cache/huggingface` bzw.
+`~/Library/Caches/datalab`), danach läuft alles **offline**. Fehlt marker, zeigt die Extension den Befehl mit „Im
+Terminal installieren“ und „Befehl kopieren“. Windows: `winget install --id astral-sh.uv -e`, dann
+`uv tool install --python 3.12 marker-pdf` (ohne NVIDIA-GPU langsamer, aber es geht).
+
+Ist schon eine andere PDF-Erweiterung (z. B. *vscode-pdf*) als Standard eingetragen, fragt VS Code beim Öffnen, welche
+Anzeige es sein soll; dauerhaft über `"workbench.editorAssociations": { "*.pdf": "mdReview.pdf" }`. In der Anzeige
+von *vscode-pdf* gibt es den Knopf oben rechts in der Tab-Leiste ebenfalls.
+
+**Was dabei herauskommt** (an BERT und „Attention Is All You Need“ ausprobiert): Überschriften mit Ebenen nach der
+Abschnittsnummer, Absätze ohne Silbentrennung und auch im Zweispaltensatz in der richtigen Reihenfolge (über
+Seitengrenzen und Abbildungen hinweg zusammengefügt), Tabellen als Markdown-Tabellen, Abbildungen als JPEG/PNG mit
+der Bildunterschrift darunter, Fußnoten als `<sup>1</sup> …`, Seitenanfänge als `<!-- page N -->` (im Editor „S. N“).
+Zitat-Links, die marker für HTML einbaut, werden entfernt.
+
+**Formeln:** marker erkennt abgesetzte Formeln als LaTeX. Der Review-Editor rendert kein LaTeX, und `_`/`*` darin
+würden als Kursivschrift gelesen. Deshalb (Einstellung `mdReview.pdf.math` = `code`) stehen sie als
+` ```math `-Block bzw. `` `$…$` `` in der Datei: im Editor lesbar und unversehrt, auf GitHub gerendert. Inline-Formeln
+liefert marker meist als Text mit `<sup>`/`<sub>`. `dollar` lässt `$…$` stehen, für Werkzeuge mit Mathe-Rendering.
+
+**Andere Umwandler** (`mdReview.pdf.engine`):
+
+| Engine | Stärken | Schwächen |
+|---|---|---|
+| `marker` (Standard) | bester Gesamteindruck bei Papern: Zweispaltensatz, Tabellen, Abbildungen, Formeln als LaTeX; ~35 s für 16 Seiten auf einem M1 | ~1 GB Installation + Modelle; Literaturliste teils zusammengezogen; Modelle nur für nicht-kommerzielle bzw. kleine Nutzung frei |
+| `docling` | sehr saubere Absätze und Literaturliste, MIT-Lizenz | Überschriften alle gleich (wir leiten sie aus den Nummern ab); Formeln nur mit `--enrich-formula` in `extraArgs` und dann sehr langsam (~7 min für 15 Seiten) |
+| `pymupdf4llm` | ohne KI-Modelle, ~4 s, klein (`pip install pymupdf4llm`) | Formeln unbrauchbar, verschachtelte Tabellen zerfallen, Absätze an Spaltenwechseln getrennt |
+| `custom` | eigener Befehl mit `{input}` und `{output}`, z. B. für einen API-Dienst wie Mathpix | – |
+
+| Einstellung | Standard | Bedeutung |
+|---|---|---|
+| `mdReview.pdf.engine` | `marker` | siehe oben |
+| `mdReview.pdf.toolPath` | leer | Pfad zu `marker_single`/`docling`/Python; leer = `PATH`, `~/.local/bin`, `/opt/homebrew/bin` |
+| `mdReview.pdf.extraArgs` | `[]` | zusätzliche Argumente, z. B. `["--force_ocr"]` für Scans |
+| `mdReview.pdf.customCommand` | leer | Befehl für `custom` |
+| `mdReview.pdf.math` | `code` | Formeln als Code (`code`) oder `$…$` lassen (`dollar`) |
+| `mdReview.pdf.pageMarkers` | `true` | `<!-- page N -->` einfügen |
+
 ## Dateiformat
 
 | Zweck | In der Datei | Anzeige |
@@ -222,7 +275,12 @@ npm run watch        # esbuild im Watch-Modus; F5 in VS Code startet einen Exten
 Aufbau: `src/criticmarkup.ts` (Marker erkennen, annehmen/ablehnen), `src/mapping.ts` (markdown-it + Offsets),
 `src/render.ts` (HTML mit `data-s`/`data-a`/`data-m`), `src/actions.ts` (alle Aktionen als reine Textfunktionen),
 `src/provider.ts` (Webview ↔ TextDocument), `src/update.ts` (Selbst-Update aus GitHub-Releases), `src/dictation.ts`
-(Aufnahme und Transkription fürs Diktieren), `media/main.js` (Webview).
+(Aufnahme und Transkription fürs Diktieren), `src/pdf.ts` (PDF-Anzeige und Umwandlung, Aufräumen des Markdowns),
+`media/main.js` (Webview), `media/pdf.js` (PDF-Anzeige mit pdf.js, das der Build nach `dist/pdfjs` kopiert).
+
+`dev/pdf.html?file=test.pdf` zeigt die PDF-Anzeige im Browser (nach `npm run build`; „Umwandeln“ spielt dort nur die
+Zustände durch). Für eine umgewandelte Datei samt Bildern: `node dev/build-harness.mjs pfad/zur/datei.md` – relative
+Bilder werden dann relativ zur Datei geladen (sie muss unter dem Projektordner liegen).
 
 Im Harness liefert das Diktieren einen festen Text; `window.__dictationText` bzw. `window.__dictationError` in der
 Konsole setzen, um andere Ergebnisse zu testen.

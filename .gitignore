@@ -5,3 +5,4 @@ dev/harness.js
 dev/index.html
 test/smoke/
 .claude/
+dev/*.pdf
