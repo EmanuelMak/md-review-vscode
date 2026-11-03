@@ -2,7 +2,7 @@
   "name": "md-review",
   "displayName": "Markdown Review Mode",
   "description": "Markdown in der gerenderten Ansicht markieren, kommentieren und Änderungen vorschlagen – gespeichert als CriticMarkup in der .md-Datei.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "emanuelmak",
   "license": "UNLICENSED",
   "private": true,
