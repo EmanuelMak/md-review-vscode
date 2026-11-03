@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!-- Browser-Harness für die PDF-Anzeige: npm run build, dann im Projektordner python3 -m http.server und
+     /dev/pdf.html?file=../pfad/zur/datei.pdf öffnen. „Umwandeln“ spielt nur die Zustände durch. -->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>PDF-Anzeige Harness</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../media/pdf.css">
+</head>
+<body class="vscode-light">
+<div id="app"></div>
+<script>
+  const file = new URLSearchParams(location.search).get('file') || 'test.pdf';
+  let state = {};
+  let timer;
+  const send = (m) => window.postMessage(m, '*');
+  window.__log = [];
+  window.__mockVscode = {
+    getState: () => state,
+    setState: (s) => (state = s),
+    postMessage(m) {
+      window.__log.push(m);
+      if (m.type === 'ready') send({ type: 'init', url: new URL(file, location.href).href, pdfjs: new URL('../dist/pdfjs', location.href).href, mdExists: false });
+      if (m.type === 'convert') {
+        let n = 0;
+        send({ type: 'state', busy: true, text: 'Wandle um mit marker …', mdExists: false });
+        timer = setInterval(() => {
+          n += 20;
+          if (n > 100) {
+            clearInterval(timer);
+            send({ type: 'state', busy: false, text: '', mdExists: true });
+          } else send({ type: 'state', busy: true, text: `Recognizing Layout ${n / 20}/5 (${n} %)` });
+        }, 400);
+      }
+      if (m.type === 'cancel') {
+        clearInterval(timer);
+        send({ type: 'state', busy: false, text: '' });
+      }
+    },
+  };
+</script>
+<script type="module" src="../media/pdf.js"></script>
+</body>
+</html>

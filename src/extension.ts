@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Dictation } from './dictation';
+import { PdfConverter, PdfViewerProvider } from './pdf';
 import { ReviewEditorProvider } from './provider';
 import { checkForUpdate, offerDefaultEditor, setDefaultEditor, startUpdateChecks } from './update';
 
@@ -45,6 +46,27 @@ export function activate(context: vscode.ExtensionContext) {
   });
   reg('mdReview.dictation.setup', () => dictation.setup());
   reg('mdReview.dictation.setApiKey', () => dictation.setApiKey());
+
+  const pdf = new PdfConverter();
+  context.subscriptions.push(
+    pdf,
+    vscode.window.registerCustomEditorProvider(PdfViewerProvider.viewType, new PdfViewerProvider(context, pdf), {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  );
+  reg('mdReview.pdf.convert', async (uri?: vscode.Uri) => {
+    const target = uri ?? activePdf();
+    if (!target) {
+      const picked = await vscode.window.showOpenDialog({ filters: { PDF: ['pdf'] }, canSelectMany: false, openLabel: 'In Markdown umwandeln' });
+      if (picked?.[0]) await pdf.convert(picked[0]);
+      return;
+    }
+    await pdf.convert(target);
+  });
+  reg('mdReview.pdf.open', async (uri?: vscode.Uri) => {
+    const target = uri ?? activePdf();
+    if (target) await vscode.commands.executeCommand('vscode.openWith', target, PdfViewerProvider.viewType);
+  });
   startUpdateChecks(context);
   void offerDefaultEditor(context, ReviewEditorProvider.viewType);
 
@@ -79,6 +101,13 @@ async function reopenWith(uri: vscode.Uri, viewType: string) {
       /* Tab bereits weg */
     }
   }
+}
+
+/** PDF im aktiven Tab (eigene Anzeige oder eine andere PDF-Erweiterung). */
+function activePdf(): vscode.Uri | undefined {
+  const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+  const uri = input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText ? input.uri : undefined;
+  return uri && /\.pdf$/i.test(uri.path) ? uri : undefined;
 }
 
 export function deactivate() {}

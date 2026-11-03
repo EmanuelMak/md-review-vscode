@@ -27,6 +27,16 @@
           }
         ],
         "priority": "option"
+      },
+      {
+        "viewType": "mdReview.pdf",
+        "displayName": "PDF (Markdown Review)",
+        "selector": [
+          {
+            "filenamePattern": "*.pdf"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "commands": [
@@ -107,6 +117,17 @@
         "command": "mdReview.dictation.setApiKey",
         "title": "Diktieren – API-Key festlegen",
         "category": "Markdown Review"
+      },
+      {
+        "command": "mdReview.pdf.convert",
+        "title": "PDF in Markdown umwandeln",
+        "category": "Markdown Review",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "mdReview.pdf.open",
+        "title": "PDF mit Markdown Review anzeigen",
+        "category": "Markdown Review"
       }
     ],
     "menus": {
@@ -115,12 +136,22 @@
           "command": "mdReview.open",
           "when": "resourceExtname == .md",
           "group": "navigation@20"
+        },
+        {
+          "command": "mdReview.pdf.convert",
+          "when": "resourceExtname == .pdf",
+          "group": "navigation@21"
         }
       ],
       "editor/title/context": [
         {
           "command": "mdReview.open",
           "when": "resourceExtname == .md",
+          "group": "1_open"
+        },
+        {
+          "command": "mdReview.pdf.convert",
+          "when": "resourceExtname == .pdf",
           "group": "1_open"
         }
       ],
@@ -139,6 +170,11 @@
           "command": "mdReview.openPreview",
           "when": "activeCustomEditorId == 'mdReview.editor'",
           "group": "navigation@2"
+        },
+        {
+          "command": "mdReview.pdf.convert",
+          "when": "activeCustomEditorId == 'pdf.preview'",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
@@ -307,6 +343,59 @@
           "default": 300,
           "minimum": 5,
           "description": "Aufnahme endet spätestens nach so vielen Sekunden."
+        },
+        "mdReview.pdf.engine": {
+          "type": "string",
+          "enum": [
+            "marker",
+            "docling",
+            "pymupdf4llm",
+            "custom"
+          ],
+          "default": "marker",
+          "enumDescriptions": [
+            "marker (marker-pdf): beste Gesamtqualität für Paper – Zweispaltensatz, Tabellen, Formeln als LaTeX. Lokal, lädt beim ersten Mal ca. 1,5 GB Modelle",
+            "docling (IBM): sehr saubere Absätze und Literaturliste, Formeln nur mit --enrich-formula (langsam). Lokal, ca. 1 GB Modelle",
+            "pymupdf4llm: sehr schnell und klein, ohne KI-Modelle; Formeln und verschachtelte Tabellen schwach",
+            "Eigener Befehl aus mdReview.pdf.customCommand"
+          ],
+          "description": "Womit PDFs in Markdown umgewandelt werden."
+        },
+        "mdReview.pdf.toolPath": {
+          "type": "string",
+          "default": "",
+          "description": "Pfad zum Umwandler (marker_single, docling bzw. ein Python mit pymupdf4llm). Leer = im PATH, in ~/.local/bin und /opt/homebrew/bin suchen."
+        },
+        "mdReview.pdf.customCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Für engine = custom: Befehl mit {input} (PDF) und {output} (leerer Ordner, in den eine .md samt Bildern geschrieben wird), z. B. mein-tool {input} -o {output}."
+        },
+        "mdReview.pdf.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Zusätzliche Argumente für den Umwandler, z. B. [\"--force_ocr\"] für marker oder [\"--enrich-formula\"] für docling."
+        },
+        "mdReview.pdf.math": {
+          "type": "string",
+          "enum": [
+            "code",
+            "dollar"
+          ],
+          "default": "code",
+          "enumDescriptions": [
+            "Formeln als Code: $…$ → `$…$`, $$…$$ → ```math-Block. Bleiben im Review-Editor lesbar und unversehrt; GitHub zeigt ```math gerendert",
+            "$…$ unverändert lassen (für Werkzeuge mit Mathe-Rendering; im Review-Editor können _ und * darin als Kursiv erscheinen)"
+          ],
+          "description": "Wie LaTeX-Formeln in die .md geschrieben werden."
+        },
+        "mdReview.pdf.pageMarkers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Seitenanfänge als <!-- page N --> einfügen (im Review-Editor als „S. N“ sichtbar)."
         }
       }
     }
@@ -330,6 +419,7 @@
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
+    "pdfjs-dist": "^6.4.299",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },

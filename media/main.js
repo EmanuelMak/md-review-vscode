@@ -79,7 +79,10 @@
   const toastEl = $('#toast');
 
   const post = (/** @type {any} */ m) => vscode.postMessage(m);
-  window.addEventListener('error', (e) => post({ type: 'log', text: `${e.message} @ ${e.lineno}:${e.colno}` }));
+  window.addEventListener('error', (e) => {
+    if (/^ResizeObserver loop/.test(e.message)) return; // harmlose Browser-Meldung
+    post({ type: 'log', text: `${e.message} @ ${e.lineno}:${e.colno}` });
+  });
   window.addEventListener('unhandledrejection', (e) => post({ type: 'log', text: String(e.reason) }));
   const colorNames = () => Object.keys(S.config.colors);
   const activeColor = () => (S.activeColor && S.config.colors[S.activeColor] ? S.activeColor : S.config.defaultColor);

@@ -19,7 +19,9 @@ let state: any = {};
 const history: string[] = [];
 
 function render(caret?: number) {
-  const r = renderDocument(text, { defaultColor: ctx.defaultColor });
+  const base: string = w.__imageBase ?? '';
+  const resolveImage = (src: string) => (/^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('/') ? src : base + src);
+  const r = renderDocument(text, { defaultColor: ctx.defaultColor, resolveImage });
   window.postMessage({ type: 'render', v: version, html: r.html, markers: r.markers, stats: r.stats, config, inkBase: '', readonly: false, caret }, '*');
   const src = document.getElementById('src');
   if (src) src.textContent = text;
