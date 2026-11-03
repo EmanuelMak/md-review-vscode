@@ -40,6 +40,18 @@ const rendered = new Set();
 
 const post = (/** @type {any} */ m) => vscode.postMessage(m);
 
+// Fehler der Anzeige ins Ausgabefenster „Markdown Review“ (Webview-Entwicklertools braucht man dann nicht)
+window.addEventListener('securitypolicyviolation', (e) => post({ type: 'log', text: `CSP blockiert ${e.violatedDirective}: ${e.blockedURI}` }));
+window.addEventListener('error', (e) => !/^ResizeObserver loop/.test(e.message) && post({ type: 'log', text: 'Fehler: ' + e.message }));
+window.addEventListener('unhandledrejection', (e) => post({ type: 'log', text: 'Fehler: ' + (e.reason?.stack ?? e.reason) }));
+for (const level of /** @type {const} */ (['warn', 'error'])) {
+  const orig = console[level].bind(console);
+  console[level] = (/** @type {any[]} */ ...args) => {
+    orig(...args);
+    post({ type: 'log', text: args.map(String).join(' ') });
+  };
+}
+
 convertBtn.onclick = () => post({ type: 'convert' });
 $('cancel').onclick = () => post({ type: 'cancel' });
 $('openMd').onclick = () => post({ type: 'openMd' });
@@ -74,9 +86,22 @@ function setState(m) {
 /** @param {{url:string, pdfjs:string, mdExists:boolean}} m */
 async function load(m) {
   setState({ busy: false, mdExists: m.mdExists });
+  const slow = setTimeout(() => {
+    $('pdfmsg').textContent = 'PDF lädt noch … (Details im Ausgabefenster „Markdown Review“)';
+    post({ type: 'log', text: 'pdf.js: nach 10 s noch nicht geladen' });
+  }, 10000);
   try {
     const lib = await import(m.pdfjs + '/pdf.min.mjs');
     lib.GlobalWorkerOptions.workerSrc = m.pdfjs + '/pdf.worker.min.mjs';
+    // Im VS-Code-Webview liegt der Worker auf einem anderen Ursprung; ein Worker von dort startet nicht
+    // (pdf.js wartet dann endlos). Deshalb den Worker-Code holen und als blob: starten.
+    try {
+      const code = await (await fetch(m.pdfjs + '/pdf.worker.min.mjs')).text();
+      const blobUrl = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+      lib.GlobalWorkerOptions.workerPort = new Worker(blobUrl, { type: 'module' });
+    } catch (e) {
+      post({ type: 'log', text: 'pdf.js-Worker als blob: fehlgeschlagen, nutze Standardweg: ' + e });
+    }
     pdf = await lib.getDocument({
       url: m.url,
       cMapUrl: m.pdfjs + '/cmaps/',
@@ -85,13 +110,18 @@ async function load(m) {
       wasmUrl: m.pdfjs + '/wasm/',
       iccUrl: m.pdfjs + '/iccs/',
       isEvalSupported: false,
+      // Fetches aus dem blob:-Worker laufen nicht über VS Codes Ressourcen-Service-Worker und hängen
+      useWorkerFetch: false,
     }).promise;
   } catch (e) {
     const err = /** @type {any} */ (e);
     $('pdfmsg').textContent = 'PDF konnte nicht angezeigt werden: ' + (err?.message ?? err);
     post({ type: 'log', text: 'pdf.js: ' + (err?.stack ?? err) });
     return;
+  } finally {
+    clearTimeout(slow);
   }
+  $('pdfmsg').textContent = '';
   sizes = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     const vp = (await pdf.getPage(i)).getViewport({ scale: 1 });
@@ -154,6 +184,7 @@ async function renderPage(/** @type {number} */ n, /** @type {HTMLElement} */ di
   canvas.width = Math.floor(vp.width);
   canvas.height = Math.floor(vp.height);
   const task = page.render({ canvas, viewport: vp });
+  const slow = setTimeout(() => post({ type: 'log', text: `Seite ${n}: nach 10 s noch nicht gezeichnet` }), 10000);
   tasks.set(n, task);
   try {
     await task.promise;
@@ -163,6 +194,7 @@ async function renderPage(/** @type {number} */ n, /** @type {HTMLElement} */ di
   } catch (e) {
     if (/** @type {any} */ (e)?.name !== 'RenderingCancelledException') post({ type: 'log', text: `Seite ${n}: ${e}` });
   } finally {
+    clearTimeout(slow);
     tasks.delete(n);
   }
 }
